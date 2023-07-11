@@ -1,24 +1,32 @@
 import RPi.GPIO as GPIO
 from time import sleep
+import csv
 
 # Direction pin from controller
 DIR = 24
+
 # Step pin from controller
 STEP = 23
+
 # Holding current pin
 HOLD = 25
+
 # Limit-switch pin
-LIMIT = 22 
+LIMIT = 22
+
 # 0/1 used to signify clockwise or counterclockwise.
 CW = 1
 CCW = 0
+
+# true check
+true_check = 20
 
 # Number of steps
 step_num = 3500
 
 # Step delays (seconds)
-step_delay_high = 0.001
-step_delay_low  = 0.001
+step_delay_high = 0.0005
+step_delay_low  = 0.0005
 
 # Setup pin layout on PI
 GPIO.setmode(GPIO.BCM)
@@ -29,64 +37,105 @@ GPIO.setup(STEP, GPIO.OUT)
 GPIO.setup(HOLD, GPIO.OUT)
 GPIO.setup(LIMIT, GPIO.IN)
 
-# Set the first direction you want it to spin
+# Set the first direction
 GPIO.output(DIR, CW)
 
 # Enable/diasable holding
 GPIO.output(HOLD, GPIO.LOW)
 
 def read_limit_switch():
-    if GPIO.input(LIMIT):
-        print("true")
-        return True
-    else:
-        print("false")
-        return False
+    true_counter = 0
     
-    sleep(0.01)
+    while GPIO.input(LIMIT):
+        true_counter += 1
+        if true_counter >= true_check:
+#             print("true")
+            return True
+#     print("false")
+    return False
 
-i = 0
+def write_to_csv(filename, data):
+    with open(filename, "a", newline="") as csvfile:
+        writer = csv.writer(csvfile)
+        writer.writerow([data])
+
+rotation_counter = 0
+rotation_step_counter = 0
+release_step_counter = 0
 switch_state = False
 
 try:
 	# Run forever.
 	while True:
-		sleep(1.0)
-		# Esablish the direction you want to go
-		GPIO.output(DIR,CW)
 		
 		switch_state = read_limit_switch()
         
-		# Run for 200 steps. This will change based on how you set you controller
 		while not switch_state:
 			GPIO.output(STEP,GPIO.HIGH)
 			sleep(step_delay_high)
 			GPIO.output(STEP,GPIO.LOW)
 			sleep(step_delay_low)
-			i += 1
+			rotation_step_counter += 1
 			switch_state = read_limit_switch()
+			
+		rotation_counter += 1
+			
+		print(f"rotation {rotation_counter} complete hit limit-switch, did {rotation_step_counter} steps")
 		
-		i = 0
-        
-		print(f"changing directions, did {i} steps")
+		write_to_csv("rotation_data.csv", rotation_step_counter)
 		
-		sleep(1.0)
-		GPIO.output(DIR,CCW)
+		rotation_step_counter = 0
+		
+# 		sleep(1.0)
+# 		GPIO.output(DIR,CCW)
 		
 		switch_state = read_limit_switch()
 		
-		while not switch_state:
+		print(f"run until switch is released")
+		
+		while switch_state:
 			GPIO.output(STEP,GPIO.HIGH)
 			sleep(step_delay_high)
 			GPIO.output(STEP,GPIO.LOW)
 			sleep(step_delay_low)
-			i += 1
+			release_step_counter += 1
 			switch_state = read_limit_switch()
 		
-		i = 0
+		print(f"switch released, did {release_step_counter} steps")
 		
-		print(f"changing directions, did {i} steps")
-
+		write_to_csv("release_data.csv", release_step_counter)
+		
+		release_step_counter = 0
+#             
+# 		while not switch_state:
+# 			GPIO.output(STEP,GPIO.HIGH)
+# 			sleep(step_delay_high)
+# 			GPIO.output(STEP,GPIO.LOW)
+# 			sleep(step_delay_low)
+# 			step_counter += 1
+# 			switch_state = read_limit_switch()
+# 		
+# 		step_counter = 0
+# 		
+# 		print(f"changing directions, did {step_counter} steps")
+# 		
+# 		sleep(1.0)
+# 		# Esablish the direction you want to go
+# 		GPIO.output(DIR,CW)
+# 		
+# 		print(f"direction changed, run until switch is released")
+# 		
+# 		while switch_state:
+# 			GPIO.output(STEP,GPIO.HIGH)
+# 			sleep(step_delay_high)
+# 			GPIO.output(STEP,GPIO.LOW)
+# 			sleep(step_delay_low)
+# 			step_counter += 1
+# 			switch_state = read_limit_switch()
+# 		
+# 		print(f"switch released, did {step_counter} steps")
+# 		
+# 		step_counter = 0
 # Once finished clean everything up
 except KeyboardInterrupt:
 	print("cleanup")
